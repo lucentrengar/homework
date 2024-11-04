@@ -1,43 +1,139 @@
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
+
+
+const users = [];
+const performances = [];
+const bookings = [];
+
 class UserService {
-    async register(username, email, password) {
-      // 회원가입 로직 구현
+ 
+}
+
+class PerformanceService {
+  async create(performance) {
+    const newPerformance = {
+      id: uuidv4(),
+      ...performance,
+      seats: this.initializeSeats(performance.totalSeats),
+      createdAt: new Date()
+    };
+    performances.push(newPerformance);
+    return newPerformance;
+  }
+
+  initializeSeats(totalSeats) {
+    return Array(totalSeats).fill().map((_, index) => ({
+      id: index + 1,
+      isBooked: false
+    }));
+  }
+
+  async getAll() {
+    return performances;
+  }
+
+  async search(query) {
+    return performances.filter(performance => 
+      performance.title.toLowerCase().includes(query.toLowerCase()) ||
+      performance.description.toLowerCase().includes(query.toLowerCase())
+    );
+  }
+
+  async getById(id) {
+    const performance = performances.find(performance => performance.id === id);
+    if (!performance) {
+      throw new Error('공연을 찾을 수 없습니다.');
     }
-  
-    async login(email, password) {
-      // 로그인 로직 구현
+    return performance;
+  }
+
+  async getSeatsInfo(performanceId) {
+    const performance = await this.getById(performanceId);
+    return performance.seats;
+  }
+}
+
+class BookingService {
+  async book(userId, performanceId, seatIds) {
+    const performance = performances.find(p => p.id === performanceId);
+    if (!performance) {
+      throw new Error('공연을 찾을 수 없습니다.');
     }
-  
-    async getProfile(userId) {
-      // 프로필 조회 로직 구현
+
+    
+    const unavailableSeats = seatIds.filter(seatId => 
+      performance.seats[seatId - 1].isBooked
+    );
+
+    if (unavailableSeats.length > 0) {
+      throw new Error(`좌석 ${unavailableSeats.join(', ')}는 이미 예약되었습니다.`);
+    }
+
+    
+    const lock = await this.acquireLock(performanceId);
+    try {
+      
+      seatIds.forEach(seatId => {
+        performance.seats[seatId - 1].isBooked = true;
+      });
+
+      const newBooking = {
+        id: uuidv4(),
+        userId,
+        performanceId,
+        seats: seatIds,
+        createdAt: new Date()
+      };
+      bookings.push(newBooking);
+      return newBooking;
+    } finally {
+    
+      await this.releaseLock(lock);
     }
   }
-  
-  class PerformanceService {
-    async create(performance) {
-      // 새 공연 등록 로직 구현
+
+  async getUserBookings(userId) {
+    return bookings.filter(booking => booking.userId === userId);
+  }
+
+  async cancelBooking(userId, bookingId) {
+    const bookingIndex = bookings.findIndex(booking => booking.id === bookingId && booking.userId === userId);
+    if (bookingIndex === -1) {
+      throw new Error('예매 내역을 찾을 수 없습니다.');
     }
-  
-    async getAll() {
-      // 공연 목록 조회 로직 구현
-    }
-  
-    async search(query) {
-      // 공연 검색 로직 구현
-    }
-  
-    async getById(id) {
-      // 공연 상세 조회 로직 구현
+
+    const booking = bookings[bookingIndex];
+    const performance = performances.find(p => p.id === booking.performanceId);
+
+   
+    const lock = await this.acquireLock(booking.performanceId);
+    try {
+      
+      booking.seats.forEach(seatId => {
+        performance.seats[seatId - 1].isBooked = false;
+      });
+
+      
+      bookings.splice(bookingIndex, 1);
+
+      return { message: '예매가 취소되었습니다.' };
+    } finally {
+      
+      await this.releaseLock(lock);
     }
   }
-  
-  class BookingService {
-    async book(userId, performanceId, seats) {
-      // 예매 로직 구현
-    }
-  
-    async getUserBookings(userId) {
-      // 사용자의 예매 내역 조회 로직 구현
-    }
+
+
+  async acquireLock(resourceId) {
+    
+    return { resourceId, lockId: uuidv4() };
   }
+
+  async releaseLock(lock) {
   
-  module.exports = { UserService, PerformanceService, BookingService };
+  }
+}
+
+module.exports = { UserService, PerformanceService, BookingService };
