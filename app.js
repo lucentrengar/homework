@@ -8,46 +8,93 @@ const userService = new UserService();
 const performanceService = new PerformanceService();
 const bookingService = new BookingService();
 
-// 사용자 관리
-app.post('/api/register', (req, res) => {
-  // 회원가입 엔드포인트
+app.post('/api/register', async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    const user = await userService.register(username, email, password);
+    res.status(201).json(user);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-app.post('/api/login', (req, res) => {
-  // 로그인 엔드포인트
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const token = await userService.login(email, password);
+    res.json({ token });
+  } catch (error) {
+    res.status(401).json({ error: error.message });
+  }
 });
 
-app.get('/api/profile', (req, res) => {
-  // 프로필 조회 엔드포인트
+app.get('/api/profile', async (req, res) => {
+  try {
+    const token = req.headers.authorization.split(' ')[1];
+    const profile = await userService.getProfile(token);
+    res.json(profile);
+  } catch (error) {
+    res.status(401).json({ error: error.message });
+  }
 });
 
-// 공연 관리
-app.post('/api/performances', (req, res) => {
-  // 새 공연 등록 엔드포인트
+app.post('/api/performances', async (req, res) => {
+  try {
+    const performance = await performanceService.createPerformance(req.body);
+    res.status(201).json(performance);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-app.get('/api/performances', (req, res) => {
-  // 공연 목록 조회 엔드포인트
+app.get('/api/performances', async (req, res) => {
+  try {
+    const performances = await performanceService.getAllPerformances();
+    res.json(performances);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.get('/api/performances/search', (req, res) => {
-  // 공연 검색 엔드포인트
+app.get('/api/performances/search', async (req, res) => {
+  try {
+    const { query } = req.query;
+    const performances = await performanceService.searchPerformances(query);
+    res.json(performances);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.get('/api/performances/:id', (req, res) => {
-  // 공연 상세 조회 엔드포인트
+app.get('/api/performances/:id', async (req, res) => {
+  try {
+    const performance = await performanceService.getPerformanceById(req.params.id);
+    res.json(performance);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
 });
 
-// 예매 관리
-app.post('/api/bookings', (req, res) => {
-  // 공연 예매 엔드포인트
+
+app.post('/api/bookings', async (req, res) => {
+  try {
+    const booking = await bookingService.createBooking(req.body);
+    res.status(201).json(booking);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
-app.get('/api/bookings', (req, res) => {
-  // 예매 확인 엔드포인트
+app.get('/api/bookings', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const bookings = await bookingService.getBookingsByUserId(userId);
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// 에러 핸들링
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
